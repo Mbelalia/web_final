@@ -1,20 +1,16 @@
-import type { NextConfig } from 'next'
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: 'export',
+  // Cette ligne doit rester commentée pour permettre les API routes
+  // output: 'export',  
   trailingSlash: true,
   images: {
     unoptimized: true,
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**',
-      },
-    ],
   },
   eslint: {
     ignoreDuringBuilds: true,
   },
+  
   turbopack: {
     rules: {
       '*.svg': {
@@ -23,8 +19,32 @@ const nextConfig: NextConfig = {
       },
     },
   },
-  webpack: (config: any, { isServer }: { isServer: boolean }) => {
-    if (!isServer) {
+  
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Server-side: externalize native modules
+      if (!config.externals) {
+        config.externals = [];
+      }
+      
+      if (Array.isArray(config.externals)) {
+        config.externals.push(
+          'canvas',
+          '@napi-rs/canvas',
+          'pdf-parse'
+        );
+      }
+    } else {
+      // Client-side: disable these modules
+      config.resolve = config.resolve || {};
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        canvas: false,
+        '@napi-rs/canvas': false,
+        'pdf-parse': false,
+        'pdfjs-dist': false,
+      };
+      
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
@@ -32,8 +52,19 @@ const nextConfig: NextConfig = {
         tls: false,
       };
     }
+    
+    // Disable minification temporarily
+    config.optimization = {
+      ...config.optimization,
+      minimize: false,
+    };
+    
     return config;
   },
-}
+  
+  env: {
+    PDFJS_DISABLE_WORKER: 'true',
+  },
+};
 
-export default nextConfig
+export default nextConfig;
