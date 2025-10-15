@@ -225,7 +225,7 @@ export default function ModernDashboard() {
 
   if (authLoading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-slate-900 via-background to-slate-800">
+      <div className="flex justify-center items-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
           <p className="text-lg font-medium text-foreground">Vérification de l'authentification...</p>
@@ -240,7 +240,7 @@ export default function ModernDashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-background to-slate-800">
+      <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
           <p className="text-lg font-medium text-foreground">Chargement du tableau de bord...</p>
@@ -250,11 +250,7 @@ export default function ModernDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-background to-slate-800 relative overflow-hidden">
-      {/* Background Elements */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5"></div>
-      <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-3xl"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-secondary/10 to-transparent rounded-full blur-3xl"></div>
+    <div className="min-h-screen bg-background relative overflow-hidden">
       
       <div className="relative z-10 p-4 sm:p-6 lg:p-8 space-y-8">
         {/* Header */}
@@ -314,12 +310,12 @@ export default function ModernDashboard() {
                 <p className="text-sm text-muted-foreground mb-2">Valeur inventaire</p>
                 <p className="text-3xl font-bold text-foreground mb-1">€{stats.inventoryValueTTC.toFixed(2)}</p>
                 <div className="flex items-center gap-2 text-xs">
-                  <ArrowUpRight className="w-3 h-3 text-green-500" />
-                  <span className="text-green-500">HT: €{stats.inventoryValueHT.toFixed(2)}</span>
+                  <ArrowUpRight className="w-3 h-3 text-blue-800" />
+                <span className="text-blue-800">HT: €{stats.inventoryValueHT.toFixed(2)}</span>
                 </div>
               </div>
-              <div className="w-12 h-12 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                <DollarSign className="w-6 h-6 text-green-500" />
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600/30 to-blue-700/30 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <DollarSign className="w-6 h-6 text-blue-800" />
               </div>
             </div>
           </div>
@@ -404,7 +400,6 @@ export default function ModernDashboard() {
                     <Trash2 className="w-4 h-4 mr-2" />
                     Supprimer tout
                   </Button>
-                )
               </div>
             </div>
             
@@ -440,8 +435,8 @@ export default function ModernDashboard() {
                 </div>
               ) : (
                 <div className="p-12 flex flex-col items-center justify-center text-center">
-                  <div className="w-16 h-16 bg-green-500/20 rounded-2xl flex items-center justify-center mb-4">
-                    <Package className="w-8 h-8 text-green-500" />
+                  <div className="w-16 h-16 bg-green-600/30 rounded-2xl flex items-center justify-center mb-4">
+              <Package className="w-8 h-8 text-green-700" />
                   </div>
                   <h4 className="font-semibold text-foreground mb-2">Aucune rupture de stock</h4>
                   <p className="text-sm text-muted-foreground">Tous vos produits sont disponibles</p>
@@ -484,8 +479,8 @@ export default function ModernDashboard() {
                 </div>
               ) : (
                 <div className="p-12 flex flex-col items-center justify-center text-center">
-                  <div className="w-16 h-16 bg-green-500/20 rounded-2xl flex items-center justify-center mb-4">
-                    <TrendingUp className="w-8 h-8 text-chart-1" />
+                  <div className="w-16 h-16 bg-green-600/30 rounded-2xl flex items-center justify-center mb-4">
+              <TrendingUp className="w-8 h-8 text-chart-1" />
                   </div>
                   <h4 className="font-semibold text-foreground mb-2">Stock optimal</h4>
                   <p className="text-sm text-muted-foreground">Aucun produit en dessous du seuil</p>
@@ -515,8 +510,8 @@ export default function ModernDashboard() {
                 <div className="text-2xl font-bold text-primary mb-1">{stats.totalInventoryProducts}</div>
                 <div className="text-sm text-muted-foreground">Produits total</div>
               </div>
-              <div className="text-center p-4 bg-green-500/5 rounded-xl border border-green-500/10">
-                <div className="text-2xl font-bold text-green-500 mb-1">€{stats.inventoryValueTTC.toFixed(2)}</div>
+              <div className="text-center p-4 bg-blue-600/15 rounded-xl border border-blue-600/20">
+              <div className="text-2xl font-bold text-blue-800 mb-1">€{stats.inventoryValueTTC.toFixed(2)}</div>
                 <div className="text-sm text-muted-foreground">Valeur TTC</div>
               </div>
               <div className="text-center p-4 bg-blue-500/5 rounded-xl border border-blue-500/10">

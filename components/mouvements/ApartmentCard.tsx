@@ -55,13 +55,13 @@ export const ApartmentCard: React.FC<ApartmentCardProps> = ({ apartment, onClick
         </div>
         
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-muted/30 p-3 rounded-xl">
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Articles</p>
-            <p className="text-xl font-bold text-foreground">{apartment.totalItems}</p>
+          <div className="bg-slate-700/80 p-3 rounded-xl border border-slate-600/50">
+            <p className="text-xs text-slate-300 font-medium uppercase tracking-wide mb-1">Articles</p>
+            <p className="text-xl font-bold text-white">{apartment.totalItems}</p>
           </div>
-          <div className="bg-muted/30 p-3 rounded-xl">
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Valeur TTC</p>
-            <p className="text-xl font-bold text-emerald-400">€{apartment.totalValueTTC.toFixed(2)}</p>
+          <div className="bg-slate-700/80 p-3 rounded-xl border border-slate-600/50">
+            <p className="text-xs text-slate-300 font-medium uppercase tracking-wide mb-1">Valeur TTC</p>
+            <p className="text-xl font-bold text-blue-300">€{apartment.totalValueTTC.toFixed(2)}</p>
           </div>
         </div>
       </div>

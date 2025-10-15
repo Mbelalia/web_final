@@ -489,18 +489,18 @@ export const ReverseMovementForm: React.FC<ReverseMovementFormProps> = ({
                                 {product?.category && (
                                   <Badge variant="secondary" className="text-xs">{product.category}</Badge>
                                 )}
-                                <span>Disponible: {movement.quantity}</span>
+                                <span className="font-medium text-blue-800">Disponible: {movement.quantity}</span>
                               </div>
                             </div>
                             <div className="text-right">
-                              <p className="text-sm text-muted-foreground">Prix TTC</p>
-                              <p className="font-mono text-green-400">{movement.pricettc?.toFixed(2)}€</p>
+                              <p className="text-sm text-foreground font-medium">Prix TTC</p>
+                              <p className="font-mono text-blue-800">{movement.pricettc?.toFixed(2)}€</p>
                             </div>
                           </div>
                           
                           {isSelected && selectedProduct && (
                             <div className="mt-3 flex items-center gap-2">
-                              <label className="text-xs text-muted-foreground">Quantité:</label>
+                              <label className="text-sm text-foreground font-medium">Quantité:</label>
                               <Input
                                 type="number"
                                 min="1"
@@ -509,7 +509,7 @@ export const ReverseMovementForm: React.FC<ReverseMovementFormProps> = ({
                                 onChange={(e) => updateProductQuantity(movement.id, parseInt(e.target.value) || 1)}
                                 className="w-20 h-8 text-sm"
                               />
-                              <span className="text-xs text-muted-foreground">/ {movement.quantity}</span>
+                              <span className="text-sm text-foreground font-medium">/ {movement.quantity}</span>
                             </div>
                           )}
                         </div>

@@ -120,7 +120,7 @@ export const RecentMovementsTable: React.FC<RecentMovementsTableProps> = ({
                         </Badge>
                       </td>
                       <td className="p-4">
-                        <span className="text-emerald-400 font-bold text-lg">
+                        <span className="text-blue-800 font-bold text-lg">
                           €{((movement.pricettc || 0) * movement.quantity).toFixed(2)}
                         </span>
                       </td>
@@ -132,8 +132,8 @@ export const RecentMovementsTable: React.FC<RecentMovementsTableProps> = ({
           </div>
         ) : (
           <div className="text-center py-16">
-            <div className="w-16 h-16 bg-green-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <ArrowRight className="h-8 w-8 text-green-500" />
+            <div className="w-16 h-16 bg-blue-600/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <ArrowRight className="h-8 w-8 text-blue-800" />
             </div>
             <h3 className="text-xl font-semibold text-foreground mb-2">Aucun mouvement récent</h3>
             <p className="text-muted-foreground max-w-md mx-auto mb-8">
@@ -141,7 +141,7 @@ export const RecentMovementsTable: React.FC<RecentMovementsTableProps> = ({
             </p>
             <Button 
               onClick={onCreateMovement} 
-              className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white"
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
             >
               <ArrowRight className="mr-2 h-5 w-5" />
               Créer un mouvement

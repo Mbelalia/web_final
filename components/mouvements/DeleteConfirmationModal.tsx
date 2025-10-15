@@ -65,7 +65,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
               </div>
               <div>
                 <span className="text-muted-foreground">Valeur: </span>
-                <span className="text-green-400 font-medium">{apartment.totalValueTTC.toFixed(2)}€</span>
+                <span className="text-blue-800 font-medium">{apartment.totalValueTTC.toFixed(2)}€</span>
               </div>
             </div>
           </div>

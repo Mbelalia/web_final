@@ -313,7 +313,7 @@ export const ApartmentDetailModal: React.FC<ApartmentDetailModalProps> = ({
             <div className="group relative bg-card/60 backdrop-blur-xl border border-border/50 rounded-xl p-4 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
               <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <div className="relative text-center">
-                <p className="text-lg font-bold text-green-400">{displayApartment.totalValueTTC.toFixed(2)}€</p>
+                <p className="text-lg font-bold text-blue-800">{displayApartment.totalValueTTC.toFixed(2)}€</p>
                 <p className="text-xs text-muted-foreground">Valeur TTC</p>
               </div>
             </div>
@@ -374,7 +374,7 @@ export const ApartmentDetailModal: React.FC<ApartmentDetailModalProps> = ({
                                 Qté: {product.totalQuantity || 0}
                               </Badge>
                               <div className="text-right">
-                                <div className="text-emerald-400 font-bold">
+                                <div className="text-blue-800 font-bold">
                                   {(product.totalValueTTC || 0).toFixed(2)}€ TTC
                                 </div>
                                 <div className="text-blue-300 text-sm">
@@ -400,7 +400,7 @@ export const ApartmentDetailModal: React.FC<ApartmentDetailModalProps> = ({
                                   <span className="text-foreground">
                                     +{movement.quantity || 0} article(s)
                                   </span>
-                                  <span className="text-green-400 font-medium">
+                                  <span className="text-blue-800 font-medium">
                                     {((movement.pricettc || 0) * (movement.quantity || 0)).toFixed(2)}€
                                   </span>
                                   <Button
@@ -491,7 +491,7 @@ export const ApartmentDetailModal: React.FC<ApartmentDetailModalProps> = ({
                                 {movement.quantity}
                               </Badge>
                             </td>
-                            <td className="p-3 text-green-400 font-medium">
+                            <td className="p-3 text-blue-800 font-medium">
                               {(movement.pricettc * movement.quantity).toFixed(2)}€
                             </td>
                             <td className="p-3">

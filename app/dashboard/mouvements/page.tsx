@@ -580,7 +580,7 @@ export default function MovementsPage() {
   // Show loading screen while checking authentication
   if (authLoading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-slate-900 via-background to-slate-800">
+      <div className="flex justify-center items-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
           <p className="text-lg font-medium text-foreground">Vérification de l'authentification...</p>
@@ -600,11 +600,7 @@ export default function MovementsPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-background to-slate-800 relative overflow-hidden">
-      {/* Background Elements */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5"></div>
-      <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-3xl"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-secondary/10 to-transparent rounded-full blur-3xl"></div>
+    <div className="min-h-screen bg-background relative overflow-hidden">
       
       <div className="relative z-10 p-4 sm:p-6 lg:p-8 space-y-8">
         <Toaster position="top-right" richColors />
@@ -659,7 +655,7 @@ export default function MovementsPage() {
 
             <Dialog open={reverseMovementOpen} onOpenChange={setReverseMovementOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="bg-blue-500/20 text-blue-400 border-blue-500/30 hover:bg-blue-500/30">
+                <Button variant="outline" className="bg-blue-600/80 text-white border-blue-600 hover:bg-blue-700">
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Retour/Transfert
                 </Button>

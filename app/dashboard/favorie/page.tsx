@@ -548,7 +548,7 @@ export default function FavoritePage() {
   // Loading screen
   if (authLoading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-slate-900 via-background to-slate-800">
+      <div className="flex justify-center items-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
           <p className="text-lg font-medium text-foreground">Vérification de l&apos;authentification...</p>
@@ -562,11 +562,7 @@ export default function FavoritePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-background to-slate-800 relative overflow-hidden">
-      {/* Background Elements */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5"></div>
-      <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-3xl"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-secondary/10 to-transparent rounded-full blur-3xl"></div>
+    <div className="min-h-screen bg-background relative overflow-hidden">
       
       <div className="relative z-10 p-4 sm:p-6 lg:p-8 space-y-8">
         <Toaster position="top-right" richColors />
@@ -885,12 +881,12 @@ export default function FavoritePage() {
                 <p className="text-sm text-muted-foreground mb-2">Valeur totale</p>
                 <p className="text-3xl font-bold text-foreground mb-1">€{totalValue.toFixed(2)}</p>
                 <div className="flex items-center gap-2 text-xs">
-                  <ArrowUpRight className="w-3 h-3 text-chart-1" />
-                  <span className="text-chart-1">TTC incluse</span>
+                  <ArrowUpRight className="w-3 h-3 text-blue-800" />
+                <span className="text-blue-800">TTC incluse</span>
                 </div>
               </div>
-              <div className="w-12 h-12 bg-gradient-to-br from-chart-1/20 to-primary/20 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                <DollarSign className="w-6 h-6 text-chart-1" />
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600/30 to-blue-700/30 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <DollarSign className="w-6 h-6 text-blue-800" />
               </div>
             </div>
           </div>

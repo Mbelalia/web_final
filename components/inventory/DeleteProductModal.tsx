@@ -108,7 +108,7 @@ export const DeleteProductModal: React.FC<DeleteProductModalProps> = ({
                         </div>
                         <div>
                             <span className="text-muted-foreground">Valeur TTC: </span>
-                            <span className="text-green-400 font-medium">{totalValue.toFixed(2)}€</span>
+                            <span className="text-blue-800 font-medium">{totalValue.toFixed(2)}€</span>
                         </div>
                         {isGrouped && (
                             <>

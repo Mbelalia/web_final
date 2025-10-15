@@ -794,7 +794,7 @@ export const MovementForm: React.FC<MovementFormProps> = ({ onSuccess, user }) =
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground text-sm">Valeur TTC:</span>
-                    <span className="font-mono font-semibold text-green-600">
+                    <span className="font-mono font-semibold text-blue-800">
                       {((selectedProduct.priceTTC || 0) * formData.quantity).toFixed(2)}€
                     </span>
                   </div>

@@ -102,8 +102,8 @@ export const ProductTable: React.FC<ProductTableProps> = ({ products, onEdit, on
                       <Badge
                           variant={stockStatus === 'out' ? 'destructive' : stockStatus === 'low' ? 'secondary' : 'default'}
                           className={`${
-                              stockStatus === 'good' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
-                                  stockStatus === 'low' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+                              stockStatus === 'good' ? 'bg-blue-600/30 text-blue-800 border-blue-600/30' :
+                                  stockStatus === 'low' ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
                                       'bg-red-500/20 text-red-400 border-red-500/30'
                           }`}
                       >
