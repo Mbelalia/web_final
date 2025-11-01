@@ -3,247 +3,123 @@ import { extractWithPdfJs, summarizePositionsForLLM, Product, extractProductsFro
 
 export const runtime = "nodejs";
 
-// POST /api/pdf-extract
-// Always uses LLM over positional summary (layout-aware) — no text mode or async jobs
-// In POST(): add vendor detection and vendor-aware prompt rules before calling LLM
-export async function POST(request: NextRequest) {
-  try {
-    console.log('=== /api/pdf-extract [positions-only LLM] :: request received ===');
+// Simple vendor detection - only IKEA and La Redoute get special treatment
+function detectVendor(summary: ReturnType<typeof summarizePositionsForLLM>): "la_redoute" | "ikea" | "generic" {
+  const hasToken = (re: RegExp) =>
+    summary.pages.some(p => p.rows.some(r => r.tokens.some(t => re.test(t.t))));
 
-    const formData = await request.formData();
-    const file = formData.get('pdf') as File | null;
+  const countMatches = (re: RegExp) =>
+    summary.pages.reduce((acc, p) => 
+      acc + p.rows.reduce((sum, r) => 
+        sum + r.tokens.filter(t => re.test(t.t)).length, 0), 0);
 
-    if (!file) {
-      console.error("FormData missing 'pdf' field.");
-      return NextResponse.json({ error: "Missing 'pdf' file in form-data" }, { status: 400 });
-    }
+  // IKEA detection
+  const ikeaScore =
+    (hasToken(/ikea/i) ? 10 : 0) +
+    (hasToken(/article\s+numéro/i) ? 5 : 0) +
+    (countMatches(/^\d{3}\.\d{3}\.\d{2}$/) * 3);
 
-    console.log('Upload info:', {
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      lastModified: (file as any)?.lastModified
-    });
+  if (ikeaScore >= 5) return "ikea";
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+  // La Redoute detection
+  const laRedouteScore =
+    (hasToken(/la\s*redoute/i) ? 10 : 0) +
+    (hasToken(/^(ref|réf)\s*:/i) ? 3 : 0) +
+    (hasToken(/^couleur\s*:/i) ? 2 : 0) +
+    (hasToken(/\bdont\b/i) ? 2 : 0);
 
-    console.time('pdfjs:extract');
-    const { plainText, pages } = await extractWithPdfJs(buffer);
-    console.timeEnd('pdfjs:extract');
+  if (laRedouteScore >= 5) return "la_redoute";
 
-    console.log(`PDF extracted: ${pages.length} page(s).`);
-    pages.slice(0, 3).forEach(p =>
-      console.log(`  Page ${p.pageNumber} (${p.width}x${p.height}) :: items=${p.items.length}`)
-    );
-
-    // Use pruned summary for LLM (fewer chars) but always print full summary to terminal
-    const summary = summarizePositionsForLLM(
-      pages,
-      { prune: true, aggressive: true, maxContextRows: 2, maxRowsPerPage: 100, onlyPagesWithPrices: true }
-    );
-    const totalRows = summary.pages.reduce((acc, p) => acc + p.rows.length, 0);
-    const totalTokens = summary.pages.reduce(
-      (acc, p) => acc + p.rows.reduce((a, r) => a + r.tokens.length, 0),
-      0
-    );
-    console.log(`Positions summary: pages=${summary.pages.length}, rows=${totalRows}, tokens=${totalTokens}`);
-    const summaryJsonLength = JSON.stringify(summary).length;
-    console.log(`Summary JSON length: ${summaryJsonLength}`);
-
-    // Always print the entire extracted summary to the terminal
-    console.log('--- FULL SUMMARY JSON ---');
-    console.log(JSON.stringify(summary));
-    console.log('--- END FULL SUMMARY ---');
-
-    summary.pages.slice(0, 2).forEach((p, pi) => {
-      console.log(`Page ${p.pageNumber} sample rows:`);
-      p.rows.slice(0, 8).forEach((r, ri) => {
-        const tokensPreview = r.tokens.map(t => `${t.t}@(${t.x},${t.y})`).join(' | ');
-        console.log(`  Row#${ri} y=${r.y} euro=${r.hasEuro} :: ${tokensPreview}`);
-      });
-    });
-
-    // Detect vendor from summary (La Redoute, IKEA, or generic)
-    const detectVendor = (sum: ReturnType<typeof summarizePositionsForLLM>): "la_redoute" | "ikea" | "generic" => {
-      const hasToken = (re: RegExp) =>
-        sum.pages.some(p =>
-          p.rows.some(r => r.tokens.some(t => re.test(t.t)))
-        );
-
-      // La Redoute clues: "Ref :", "Couleur :", "Taille :", "Quantité :", "dont", "FRAIS DE PORT", "MONTANT"
-      const isLaRedoute =
-        hasToken(/^(ref|réf)\s*:/i) ||
-        hasToken(/^couleur\s*:/i) ||
-        hasToken(/^taille\s*:/i) ||
-        hasToken(/^quantité\s*:/i) ||
-        hasToken(/\bdont\b/i) ||
-        hasToken(/frais\s+de\s+port/i) ||
-        hasToken(/\bmontant\b/i);
-
-      // IKEA clues: "Article numéro", IKEA ref codes like 305.332.14, 606.024.04
-      const isIkea =
-        hasToken(/article\s+numéro/i) ||
-        sum.pages.some(p =>
-          p.rows.some(r => r.tokens.some(t => /^\d{3}\.\d{3}\.\d{2}$/.test(t.t.trim())))
-        );
-
-      if (isLaRedoute) return "la_redoute";
-      if (isIkea) return "ikea";
-      return "generic";
-    };
-
-    const vendor = detectVendor(summary);
-    console.log('Detected vendor:', vendor);
-
-    // Build vendor-specific rules appended to the LLM prompt
-    const vendorPromptRules = (v: "la_redoute" | "ikea" | "generic"): string => {
-      if (v === "la_redoute") {
-        return [
-          "- Use the discounted (smaller) price near the right-side euro symbol.",
-          "- If both total and quantity appear, set priceTTC (unit price) = total / quantity.",
-          "- Include Couleur and Taille in description when present.",
-          "- Ignore lines starting with 'dont', shipping (FRAIS DE PORT), and global totals (MONTANT).",
-        ].join("\n");
-      }
-      if (v === "ikea") {
-        return [
-          "- Use the discounted (smaller) price when two prices appear on the same line.",
-          "- Quantity is the nearest pure integer to the left of the right-side price on the same line.",
-          "- Recognize 'Article numéro' and code patterns like 305.332.14 for reference.",
-          "- Ignore shipping, eco-participation, and global totals.",
-        ].join("\n");
-      }
-      // Generic rules for unknown vendors
-      return [
-        "- Use numeric tokens adjacent to '€' for priceTTC; convert commas to dots.",
-        "- Quantity is a small integer aligned left of the price column on the same line.",
-        "- Names must be clean (no prices/codes); references come from nearby codes or labels.",
-        "- Ignore shipping/fees/global totals lines.",
-      ].join("\n");
-    };
-
-    // First: deterministic positional extraction
-    const baseProducts = extractProductsFromPositions(pages, { vendor });
-    console.log(`Positional products parsed: ${baseProducts.length}`);
-    (baseProducts || []).slice(0, 10).forEach((p, i) =>
-      console.log(`POS ${i + 1}. "${p.name}" qty=${p.quantity} TTC=${p.priceTTC ?? 'n/a'} HT=${p.priceHT ?? 'n/a'} ref=${p.reference ?? 'n/a'}`)
-    );
-
-    let products: Product[] = [];
-
-    // For IKEA: prefer positional results (they work perfectly)
-    // For La Redoute: use LLM with boxes for better segmentation
-    if (vendor === "ikea" && baseProducts.length > 0) {
-      products = baseProducts;
-      console.log('Using IKEA positional products; LLM skipped.');
-    } else {
-      // Use LLM approach with boxes for La Redoute and generic PDFs
-      const boxSummary = groupRowsIntoProductBoxes(summary, { prePadding: 80, postPadding: 10, minRowsPerBox: 1 });
-      console.log(`Box summary: pages=${boxSummary.pages.length}, boxes=${boxSummary.pages.reduce((a,p)=>a+p.boxes.length,0)}`);
-
-      const llmPrompt =
-        `You are extracting products from an invoice.\n` +
-        `Vendor: ${vendor}\n` +
-        `Assumption: Each 'box' below corresponds to exactly one product.\n` +
-        `Rules:\n` +
-        vendorPromptRules(vendor) + "\n" +
-        `Output: ONLY a minified JSON array with objects:\n` +
-        `[\n` +
-        `  {\n` +
-        `    "id": "unique-identifier",\n` +
-        `    "name": "PRODUCT_NAME_ONLY",\n` +
-        `    "description": "size, color, variant details",\n` +
-        `    "quantity": 1,\n` +
-        `    "priceTTC": 0.00,\n` +
-        `    "priceHT": 0.00,\n` +
-        `    "reference": "product-reference-or-sku"\n` +
-        `  }\n` +
-        `]\n` +
-        `Do not echo the input data.\n` +
-        `DATA (do not echo):\n` +
-        `${JSON.stringify(boxSummary)}`;
-
-      console.log(`LLM prompt length: ${llmPrompt.length} chars`);
-
-      console.time('llm:call');
-      products = await extractProductsWithLLM(llmPrompt);
-      console.timeEnd('llm:call');
-
-      // Fallback if LLM returns nothing or generic placeholders
-      const isGeneric = (p: Product) =>
-        !p?.name ||
-        /^(item|product)\s*\d+$/i.test(p.name.trim()) ||
-        p.name.trim().length < 2;
-
-      // If LLM yields nothing or is generic, fall back to positional extractor
-      if (!products || products.length === 0) {
-        console.log('LLM products empty or generic; falling back to positional extractor.');
-        const fallback = extractProductsFromPositions(pages, { vendor });
-        if (fallback.length > 0) {
-          products = fallback;
-        }
-      }
-      if (products.length === 0 || products.every(isGeneric)) {
-        const fallback = extractProductsFromPositions(pages, { vendor });
-        products = fallback;
-      }
-    }
-
-    console.log(`Final products: ${Array.isArray(products) ? products.length : 0}`);
-    (products || []).slice(0, 10).forEach((p, i) =>
-      console.log(`${i + 1}. "${p.name}" qty=${p.quantity} TTC=${p.priceTTC ?? 'n/a'} HT=${p.priceHT ?? 'n/a'} ref=${p.reference ?? 'n/a'}`)
-    );
-
-    return NextResponse.json({
-      success: true,
-      products,
-      positions: pages,
-      metadata: {
-        pages: pages.length,
-        textLength: (plainText || '').length,
-        productsFound: Array.isArray(products) ? products.length : 0,
-        method: 'llm-positions'
-      }
-    });
-  } catch (error: any) {
-    console.error('PDF extraction (positions-only) error:', error?.stack || error);
-    return NextResponse.json(
-      { error: 'Failed to extract products from PDF using positional LLM' },
-      { status: 500 }
-    );
-  }
+  // Everything else is generic
+  return "generic";
 }
 
-// LLM call — expects a prompt including positional summary; returns a parsed products array
-async function extractProductsWithLLM(prompt: string): Promise<Product[]> {
+// Universal LLM prompt that works for any invoice layout
+function buildUniversalPrompt(
+  boxSummary: ReturnType<typeof groupRowsIntoProductBoxes>,
+  vendor: "la_redoute" | "ikea" | "generic"
+): string {
+  
+  const vendorHints = vendor === "ikea" 
+    ? "\n- IKEA: Look for reference codes like 305.332.14"
+    : vendor === "la_redoute"
+    ? "\n- La Redoute: Use smaller price, divide by quantity if needed"
+    : "";
+
+  return `Extract products from invoice data. Return ONLY a JSON array.
+
+UNIVERSAL EXTRACTION RULES:
+1. Find product names (left-aligned text, usually longest text on the line)
+2. Find prices (numbers near € symbol on the right side)
+3. Find quantities (small integers, usually between name and price)
+4. When multiple prices appear: use the SMALLER one (discounted price)
+5. Price must be UNIT price per item (if you see total and quantity, divide: total/quantity)
+6. Product reference/SKU: look for codes near the product name${vendorHints}
+
+SKIP THESE (not products):
+- Headers: "Article", "Taille", "Quantité", "Remise", "Prix"
+- Totals: "MONTANT", "TOTAL", "SOUS-TOTAL", "SOUS TOTAL"
+- Shipping: "FRAIS DE PORT", "Livraison", "Frais de livraison"
+- Fees: "dont", "éco-participation", "eco-participation"
+- Payment: "CARTE VISA", "Payé par", "Mode de paiement"
+- Other: "ÉCONOMIE", "TVA", "Adresse"
+
+OUTPUT FORMAT (minified JSON only, no explanation):
+[
+  {
+    "id": "auto-generated-id",
+    "name": "Clean Product Name",
+    "description": "size, color, variant details if present",
+    "quantity": 1,
+    "priceTTC": 123.45,
+    "priceHT": null,
+    "reference": "SKU or code if found"
+  }
+]
+
+INSTRUCTIONS:
+- Each "box" below = one product
+- Extract from tokens in each box
+- name: text tokens from left side (no prices, no codes)
+- priceTTC: number before € symbol on right side, use SMALLER if multiple
+- quantity: integer near middle/before price
+- description: extra details like size (cm, mm), color, variant
+- reference: any code/SKU near product name
+- Format prices as decimals: 269.90 not "269,90" or "269.90 €"
+
+DATA:
+${JSON.stringify(boxSummary, null, 0)}
+
+JSON OUTPUT:`;
+}
+
+// Robust LLM extraction with cleanup
+async function extractWithLLM(
+  boxSummary: ReturnType<typeof groupRowsIntoProductBoxes>,
+  vendor: "la_redoute" | "ikea" | "generic"
+): Promise<Product[]> {
   const ollamaEndpoint = process.env.HOSTINGER_LLM_ENDPOINT || 'https://ollama.mabeldev.com/api/generate';
   const ollamaApiKey = process.env.HOSTINGER_LLM_API_KEY;
 
-  console.log('LLM endpoint:', ollamaEndpoint);
-  console.log('Prompt size:', prompt.length);
+  const prompt = buildUniversalPrompt(boxSummary, vendor);
+  console.log(`LLM prompt: ${prompt.length} chars, vendor: ${vendor}`);
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 1200000);
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
 
   try {
     const payload = {
       model: 'mistral:latest',
       prompt,
       stream: false,
-      // Removed to prevent the model from echoing the embedded summary JSON
-      // format: 'json',
-      system:
-        'You are a function that returns ONLY a minified JSON array. ' +
-        'No prose, no markdown, and do not echo the input data. ' +
-        'If unsure, return [].',
+      system: 'You extract product data and return pure JSON arrays. No markdown, no explanations, no echoing input.',
       options: {
         temperature: 0,
-        top_p: 0.7,
-        num_predict: 2048
+        top_p: 0.9,
+        num_predict: 4096,
+        stop: ['```', 'DATA:', 'INSTRUCTIONS:', '\n\nNote:', '\n\nRemember:']
       }
     };
-    console.log('LLM payload options:', payload.options);
 
     const response = await fetch(ollamaEndpoint, {
       method: 'POST',
@@ -255,141 +131,218 @@ async function extractProductsWithLLM(prompt: string): Promise<Product[]> {
       signal: controller.signal
     });
 
-    console.log('LLM response status:', response.status, response.statusText);
     if (!response.ok) {
-      throw new Error(`LLM API error: ${response.status} ${response.statusText}`);
+      throw new Error(`LLM error: ${response.status}`);
     }
 
     const data = await response.json();
+    let raw = data.response || data.text || JSON.stringify(data);
 
-    // Prefer structured fields first; fall back to the whole object
-    let raw: string;
-    if (typeof data.response === 'string') {
-      raw = data.response;
-    } else if (data.response && typeof data.response === 'object') {
-      raw = JSON.stringify(data.response);
-    } else if (typeof data.text === 'string') {
-      raw = data.text;
-    } else {
-      raw = JSON.stringify(data);
-    }
+    console.log('LLM response length:', raw.length);
+    console.log('LLM sample:', raw.slice(0, 500));
 
-    console.log('LLM raw length:', raw.length);
-    console.log('='.repeat(80));
-    console.log('LLM RAW (head):');
-    console.log(raw.slice(0, 800));
-    if (raw.length > 1200) {
-      console.log('--- tail ---');
-      console.log(raw.slice(-400));
-    }
-    console.log('='.repeat(80));
+    // Aggressive cleanup
+    raw = raw
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .replace(/^[^[{]*/g, '')  // Remove everything before first [ or {
+      .replace(/[}\]]\s*[^}\]]*$/g, ']}')  // Clean after last ] or }
+      .trim();
 
-    const tryJsonParse = (s: string): any | null => {
-      try { return JSON.parse(s); } catch { return null; }
-    };
-    const parsedRoot = tryJsonParse(raw);
-
-    const pickArray = (obj: any): any[] | null => {
-      if (Array.isArray(obj)) return obj;
-      if (!obj || typeof obj !== 'object') return null;
-
-      // Check common wrappers first
-      const directKeys = ['items', 'products', 'result', 'array'];
-      for (const key of directKeys) {
-        const val = obj[key];
-        if (Array.isArray(val)) return val;
-      }
-
-      // Nested common: { data: { items/products: [...] } }
-      const dataKey = obj.data;
-      if (dataKey && typeof dataKey === 'object') {
-        if (Array.isArray(dataKey.items)) return dataKey.items;
-        if (Array.isArray(dataKey.products)) return dataKey.products;
-      }
-
-      // Avoid picking positional summary pages
-      if (Array.isArray(obj.pages)) {
-        // This is likely the positional summary, do not treat as products
-      }
-
-      return null;
-    };
-
-    let arrayCandidate: any[] | null =
-      (parsedRoot ? pickArray(parsedRoot) : null);
-
-    // Regex fallback if no structured candidate found
-    if (!arrayCandidate) {
-      const jsonArrayMatch = raw.match(/\[\s*{[\s\S]*}\s*\]/);
-      if (!jsonArrayMatch) {
-        const firstBracket = raw.indexOf('[');
-        const lastBracket = raw.lastIndexOf(']');
-        if (firstBracket !== -1 && lastBracket > firstBracket) {
-          const candidate = raw.slice(firstBracket, lastBracket + 1);
-          const parsedCandidate = tryJsonParse(candidate);
-          if (Array.isArray(parsedCandidate)) {
-            console.warn('Parsed array via bracket fallback.');
-            arrayCandidate = parsedCandidate;
-          }
-        }
-      } else {
-        const parsedCandidate = tryJsonParse(jsonArrayMatch[0]);
-        if (Array.isArray(parsedCandidate)) {
-          arrayCandidate = parsedCandidate;
-        }
-      }
-    }
-
-    if (!arrayCandidate || !Array.isArray(arrayCandidate)) {
-      console.warn('LLM did not return a usable JSON array; returning empty products.');
+    // Extract JSON array
+    const arrayMatch = raw.match(/\[\s*\{[\s\S]*\}\s*\]/);
+    if (!arrayMatch) {
+      console.warn('No valid JSON array in response');
       return [];
     }
 
-    // Map with field synonyms to tolerate different keys
-    const products: Product[] = arrayCandidate
-      .filter((p: any) => p && typeof p === 'object')
+    let parsed: any;
+    try {
+      parsed = JSON.parse(arrayMatch[0]);
+    } catch (e) {
+      console.error('JSON parse error:', e);
+      // Try to fix common issues
+      const fixed = arrayMatch[0]
+        .replace(/,(\s*[}\]])/g, '$1')  // Remove trailing commas
+        .replace(/([{,]\s*)(\w+):/g, '$1"$2":');  // Quote unquoted keys
+      try {
+        parsed = JSON.parse(fixed);
+      } catch (e2) {
+        console.error('JSON fix failed');
+        return [];
+      }
+    }
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    // Map to clean Product objects
+    const products: Product[] = parsed
+      .filter((p: any) => {
+        if (!p || typeof p !== 'object') return false;
+        const name = String(p.name || '').trim();
+        // Filter out generic placeholders
+        if (!name || name.length < 2) return false;
+        if (/^(product|item|article)\s*\d*$/i.test(name)) return false;
+        return true;
+      })
       .map((p: any, idx: number) => {
-        const name =
-          String(p?.name ?? p?.product ?? p?.title ?? p?.label ?? '').trim();
-        const description =
-          String(p?.description ?? p?.desc ?? p?.details ?? p?.variant ?? '').trim();
-        const quantityRaw = p?.quantity ?? p?.qty ?? p?.count ?? 1;
-        const quantity = Number.isFinite(Number(quantityRaw))
-          ? parseInt(String(quantityRaw), 10)
-          : 1;
+        const cleanPrice = (val: any): number | undefined => {
+          if (val == null) return undefined;
+          const s = String(val).replace(/[^\d.,]/g, '').replace(',', '.');
+          const n = parseFloat(s);
+          return isFinite(n) && n > 0 ? parseFloat(n.toFixed(2)) : undefined;
+        };
 
-        const priceTTC = coercePrice(
-          p?.priceTTC ?? p?.ttc ?? p?.price ?? p?.total ?? p?.amount
-        );
-        const priceHT = coercePrice(
-          p?.priceHT ?? p?.ht ?? p?.net ?? p?.subtotal
-        );
+        const name = String(p.name || '').trim();
+        const description = String(p.description || p.desc || p.details || '').trim();
+        
+        let quantity = 1;
+        const qtyRaw = p.quantity || p.qty || p.count;
+        if (qtyRaw != null) {
+          const q = parseInt(String(qtyRaw), 10);
+          if (!isNaN(q) && q > 0 && q < 1000) quantity = q;
+        }
 
-        const reference =
-          String(p?.reference ?? p?.sku ?? p?.code ?? p?.itemCode ?? '').trim();
+        const priceTTC = cleanPrice(p.priceTTC || p.ttc || p.price || p.amount);
+        const priceHT = cleanPrice(p.priceHT || p.ht);
+        const reference = String(p.reference || p.sku || p.code || p.ref || '').trim();
 
-        const id =
-          (String(p?.id || '') ||
-            (name + reference).toLowerCase().replace(/[^a-z0-9]/g, '') ||
-            `product_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
+        const id = (name + reference)
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '')
+          .slice(0, 40) || `prod_${Date.now()}_${idx}`;
 
-        console.log(`Product[${idx}]:`, { id, name, quantity, priceTTC, priceHT, reference });
-        return { id, name, description, quantity, priceHT, priceTTC, reference };
+        return { id, name, description, quantity, priceTTC, priceHT, reference };
       });
 
-    console.log('Parsed products count:', products.length);
+    console.log(`LLM extracted: ${products.length} products`);
     return products;
-  } catch (err) {
-    console.error('LLM call failed:', err);
+
+  } catch (err: any) {
+    console.error('LLM call failed:', err.message);
     return [];
   } finally {
     clearTimeout(timeoutId);
   }
 }
 
-function coercePrice(val: any): number | undefined {
-  if (val == null) return undefined;
-  const s = String(val).replace(',', '.').replace(/[^\d.]/g, '');
-  const n = parseFloat(s);
-  return Number.isFinite(n) ? n : undefined;
+// Main extraction endpoint
+export async function POST(request: NextRequest) {
+  try {
+    console.log('=== PDF EXTRACTION START ===');
+
+    const formData = await request.formData();
+    const file = formData.get('pdf') as File | null;
+
+    if (!file) {
+      return NextResponse.json({ error: "No PDF file provided" }, { status: 400 });
+    }
+
+    console.log(`Processing: ${file.name} (${file.size} bytes)`);
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Extract PDF structure
+    console.time('pdf-extraction');
+    const { plainText, pages } = await extractWithPdfJs(buffer);
+    console.timeEnd('pdf-extraction');
+
+    console.log(`PDF: ${pages.length} pages, ${plainText.length} chars`);
+
+    // Create compact positional summary
+    const summary = summarizePositionsForLLM(pages, {
+      prune: true,
+      aggressive: true,
+      maxContextRows: 3,
+      maxRowsPerPage: 100,
+      onlyPagesWithPrices: true
+    });
+
+    const totalRows = summary.pages.reduce((a, p) => a + p.rows.length, 0);
+    console.log(`Summary: ${summary.pages.length} pages, ${totalRows} rows`);
+
+    // Detect vendor (only IKEA and La Redoute get special handling)
+    const vendor = detectVendor(summary);
+    console.log(`Vendor: ${vendor}`);
+
+    let products: Product[] = [];
+
+    // IKEA works best with positional extraction
+    if (vendor === 'ikea') {
+      console.log('Using positional extraction (IKEA optimized)');
+      products = extractProductsFromPositions(pages, { vendor });
+      
+      // Fallback to LLM if positional fails
+      if (products.length === 0) {
+        console.log('Positional extraction failed, trying LLM...');
+        const boxSummary = groupRowsIntoProductBoxes(summary, {
+          prePadding: 80,
+          postPadding: 10,
+          minRowsPerBox: 1
+        });
+        products = await extractWithLLM(boxSummary, vendor);
+      }
+    } else {
+      // Everything else (including La Redoute) uses universal LLM approach
+      console.log('Using universal LLM extraction');
+      
+      const boxSummary = groupRowsIntoProductBoxes(summary, {
+        prePadding: 100,
+        postPadding: 15,
+        minRowsPerBox: 1
+      });
+
+      console.log(`Created ${boxSummary.pages.reduce((a, p) => a + p.boxes.length, 0)} product boxes`);
+
+      products = await extractWithLLM(boxSummary, vendor);
+
+      // Fallback to positional if LLM completely fails
+      if (products.length === 0) {
+        console.log('LLM extraction failed, trying positional fallback...');
+        products = extractProductsFromPositions(pages, { vendor });
+      }
+    }
+
+    // Validate and clean results
+    const validProducts = products
+      .filter(p => p.name && p.name.length >= 2)
+      .map(p => ({
+        ...p,
+        quantity: Math.max(1, p.quantity || 1),
+        priceTTC: p.priceTTC && p.priceTTC > 0 ? parseFloat(p.priceTTC.toFixed(2)) : undefined,
+        priceHT: p.priceHT && p.priceHT > 0 ? parseFloat(p.priceHT.toFixed(2)) : undefined,
+        description: p.description?.slice(0, 200) || '',
+        reference: p.reference?.slice(0, 50) || ''
+      }));
+
+    console.log(`=== RESULTS: ${validProducts.length} products ===`);
+    validProducts.slice(0, 5).forEach((p, i) => {
+      console.log(`${i + 1}. "${p.name}" x${p.quantity} @ €${p.priceTTC || '?'}`);
+    });
+
+    return NextResponse.json({
+      success: true,
+      products: validProducts,
+      metadata: {
+        vendor,
+        pages: pages.length,
+        productsFound: validProducts.length,
+        method: vendor === 'ikea' ? 'positional' : 'llm-universal'
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Extraction error:', error);
+    return NextResponse.json(
+      { 
+        error: 'PDF extraction failed', 
+        details: error.message,
+        success: false 
+      },
+      { status: 500 }
+    );
+  }
 }

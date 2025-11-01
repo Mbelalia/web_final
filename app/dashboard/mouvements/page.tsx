@@ -52,6 +52,7 @@ export default function MovementsPage() {
   const [createMovementOpen, setCreateMovementOpen] = useState(false)
   const [reverseMovementOpen, setReverseMovementOpen] = useState(false)
   const [selectedApartment, setSelectedApartment] = useState<ApartmentSummary | null>(null)
+  const [selectedApartmentForReverse, setSelectedApartmentForReverse] = useState<string | null>(null)
   const [apartmentDetailOpen, setApartmentDetailOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [apartmentToDelete, setApartmentToDelete] = useState<ApartmentSummary | null>(null)
@@ -401,7 +402,7 @@ export default function MovementsPage() {
         product.name.length > 25 ? product.name.substring(0, 25) + '...' : product.name,
         // Correction : utiliser la bonne structure de données
         (product.category && product.subcategory) 
-          ? `${product.category} > ${product.subcategory}`
+          ? `${product.category} -> ${product.subcategory}`
           : product.category || 'Non catégorisé',
         product.totalQuantity.toString(),
         `${product.totalValueTTC.toFixed(2)} €`
@@ -437,12 +438,12 @@ export default function MovementsPage() {
     
     // Dans la section d'analyse par catégorie (ligne ~430)
     const categoryStats = products.reduce((acc: any, product: any) => {
-    // Correction : utiliser la structure correcte
+    // Correction : utiliser la structure correcte avec encodage UTF-8 approprié
     const category = product.category || 'Non catégorisé'
     const subcategory = product.subcategory
     
-    // Créer une clé combinée si sous-catégorie existe
-    const categoryKey = subcategory ? `${category} > ${subcategory}` : category
+    // Créer une clé combinée si sous-catégorie existe - utiliser > au lieu de ;
+    const categoryKey = subcategory ? `${category} -> ${subcategory}` : category
     
     if (!acc[categoryKey]) {
       acc[categoryKey] = {
@@ -653,7 +654,12 @@ export default function MovementsPage() {
               </DialogContent>
             </Dialog>
 
-            <Dialog open={reverseMovementOpen} onOpenChange={setReverseMovementOpen}>
+            <Dialog open={reverseMovementOpen} onOpenChange={(open) => {
+              setReverseMovementOpen(open)
+              if (!open) {
+                setSelectedApartmentForReverse(null) // Clear selection when modal closes
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="bg-blue-600/80 text-white border-blue-600 hover:bg-blue-700">
                   <ArrowLeft className="mr-2 h-4 w-4" />
@@ -667,7 +673,11 @@ export default function MovementsPage() {
                     Déplacez des produits d'un appartement vers le stock ou vers un autre appartement.
                   </DialogDescription>
                 </DialogHeader>
-                <ReverseMovementForm onSuccess={handleCreateSuccess} user={user} />
+                <ReverseMovementForm 
+                  onSuccess={handleCreateSuccess} 
+                  user={user} 
+                  sourceApartmentId={selectedApartmentForReverse || undefined}
+                />
               </DialogContent>
             </Dialog>
           </div>
@@ -755,6 +765,11 @@ export default function MovementsPage() {
           onDelete={handleDeleteRequest}
           onExportPDF={generatePDF}
           onMovementDeleted={fetchData} // Add this callback to refresh apartment data
+          onOpenReverseMovement={(apartmentId) => {
+            setSelectedApartmentForReverse(apartmentId) // Store the apartment ID
+            setApartmentDetailOpen(false) // Close the detail modal
+            setReverseMovementOpen(true) // Open the reverse movement modal
+          }}
           user={user}
         />
 
