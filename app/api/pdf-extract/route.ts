@@ -94,6 +94,7 @@ JSON OUTPUT:`;
 }
 
 // Robust LLM extraction with cleanup
+// Robust LLM extraction with cleanup
 async function extractWithLLM(
   boxSummary: ReturnType<typeof groupRowsIntoProductBoxes>,
   vendor: "la_redoute" | "ikea" | "generic"
@@ -112,81 +113,98 @@ async function extractWithLLM(
       model: 'mistral:latest',
       prompt,
       stream: false,
-      system: 'You extract product data and return pure JSON arrays. No markdown, no explanations, no echoing input.',
+      system:
+        'You are a JSON-only API. Return only valid JSON arrays. Do not include markdown, comments, or explanations. Your output must start with "[" and end with "]".',
       options: {
         temperature: 0,
         top_p: 0.9,
         num_predict: 4096,
-        stop: ['```', 'DATA:', 'INSTRUCTIONS:', '\n\nNote:', '\n\nRemember:']
-      }
+        stop: ['```', 'DATA:', 'INSTRUCTIONS:', '\n\nNote:', '\n\nRemember:'],
+      },
     };
 
     const response = await fetch(ollamaEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(ollamaApiKey && { 'Authorization': `Bearer ${ollamaApiKey}` })
+        ...(ollamaApiKey && { Authorization: `Bearer ${ollamaApiKey}` }),
       },
       body: JSON.stringify(payload),
-      signal: controller.signal
+      signal: controller.signal,
     });
 
     if (!response.ok) {
       throw new Error(`LLM error: ${response.status}`);
     }
 
-    const data = await response.json();
-    let raw = data.response || data.text || JSON.stringify(data);
+    // Read raw text safely (not .json()) in case of malformed output
+    const data = await response.text();
+    let raw: string;
+
+    try {
+      const parsed = JSON.parse(data);
+      raw = parsed.response || parsed.text || data;
+    } catch {
+      raw = data;
+    }
 
     console.log('LLM response length:', raw.length);
     console.log('LLM sample:', raw.slice(0, 500));
 
-    // Aggressive cleanup
+    // Cleanup phase
     raw = raw
       .replace(/```json\s*/gi, '')
-      .replace(/```\s*/g, '')
-      .replace(/^[^[{]*/g, '')  // Remove everything before first [ or {
-      .replace(/[}\]]\s*[^}\]]*$/g, ']}')  // Clean after last ] or }
+      .replace(/```/g, '')
+      .replace(/^[\s\S]*?(\[|\{)/, '$1') // Remove anything before first [ or {
+      .replace(/(\}|\])[\s\S]*$/, '$1') // Remove anything after last } or ]
       .trim();
 
-    // Extract JSON array
     const arrayMatch = raw.match(/\[\s*\{[\s\S]*\}\s*\]/);
     if (!arrayMatch) {
       console.warn('No valid JSON array in response');
       return [];
     }
 
+    // 💪 Improved parsing logic
     let parsed: any;
     try {
       parsed = JSON.parse(arrayMatch[0]);
-    } catch (e) {
-      console.error('JSON parse error:', e);
-      // Try to fix common issues
+    } catch (err) {
+      console.error("❌ Primary JSON parse failed:", err);
+      console.log("🧾 Raw content snippet (first 400 chars):", raw.slice(0, 400));
+
+      // Try to auto-fix common issues
       const fixed = arrayMatch[0]
-        .replace(/,(\s*[}\]])/g, '$1')  // Remove trailing commas
-        .replace(/([{,]\s*)(\w+):/g, '$1"$2":');  // Quote unquoted keys
+        // Remove trailing commas
+        .replace(/,(\s*[}\]])/g, '$1')
+        // Quote unquoted keys
+        .replace(/([{,]\s*)([a-zA-Z0-9_]+)(\s*):/g, '$1"$2"$3:')
+        // Escape stray quotes inside strings
+        .replace(/:\s*"([^"]*?)"(?=[^,}\]])/g, (m) => m.replace(/"/g, '\\"'))
+        // Remove duplicate quotes
+        .replace(/""/g, '"')
+        // Remove any line breaks or control chars
+        .replace(/[\r\n\t]/g, ' ')
+        .trim();
+
       try {
         parsed = JSON.parse(fixed);
-      } catch (e2) {
-        console.error('JSON fix failed');
+        console.log("✅ JSON successfully fixed after cleanup");
+      } catch (err2) {
+        console.error("❌ JSON fix failed:", err2);
+        console.log("🧾 Final raw content (first 400 chars):", fixed.slice(0, 400));
         return [];
       }
     }
 
     if (!Array.isArray(parsed)) {
+      console.warn("LLM output not an array, ignoring");
       return [];
     }
 
-    // Map to clean Product objects
+    // Map to Product[]
     const products: Product[] = parsed
-      .filter((p: any) => {
-        if (!p || typeof p !== 'object') return false;
-        const name = String(p.name || '').trim();
-        // Filter out generic placeholders
-        if (!name || name.length < 2) return false;
-        if (/^(product|item|article)\s*\d*$/i.test(name)) return false;
-        return true;
-      })
+      .filter((p: any) => p && typeof p === "object" && String(p.name || "").trim().length > 1)
       .map((p: any, idx: number) => {
         const cleanPrice = (val: any): number | undefined => {
           if (val == null) return undefined;
@@ -195,9 +213,10 @@ async function extractWithLLM(
           return isFinite(n) && n > 0 ? parseFloat(n.toFixed(2)) : undefined;
         };
 
-        const name = String(p.name || '').trim();
-        const description = String(p.description || p.desc || p.details || '').trim();
-        
+        const name = String(p.name || "").trim();
+        const description = String(p.description || p.desc || "").trim();
+        const reference = String(p.reference || p.ref || p.sku || "").trim();
+
         let quantity = 1;
         const qtyRaw = p.quantity || p.qty || p.count;
         if (qtyRaw != null) {
@@ -205,9 +224,8 @@ async function extractWithLLM(
           if (!isNaN(q) && q > 0 && q < 1000) quantity = q;
         }
 
-        const priceTTC = cleanPrice(p.priceTTC || p.ttc || p.price || p.amount);
+        const priceTTC = cleanPrice(p.priceTTC || p.price || p.amount);
         const priceHT = cleanPrice(p.priceHT || p.ht);
-        const reference = String(p.reference || p.sku || p.code || p.ref || '').trim();
 
         const id = (name + reference)
           .toLowerCase()
@@ -217,16 +235,16 @@ async function extractWithLLM(
         return { id, name, description, quantity, priceTTC, priceHT, reference };
       });
 
-    console.log(`LLM extracted: ${products.length} products`);
+    console.log(`✅ LLM extracted ${products.length} products`);
     return products;
-
   } catch (err: any) {
-    console.error('LLM call failed:', err.message);
+    console.error('❌ LLM call failed:', err.message);
     return [];
   } finally {
     clearTimeout(timeoutId);
   }
 }
+
 
 // Main extraction endpoint
 export async function POST(request: NextRequest) {
