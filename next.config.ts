@@ -53,11 +53,11 @@ const nextConfig: NextConfig = {
       };
     }
     
-    // Disable minification temporarily
-    config.optimization = {
-      ...config.optimization,
-      minimize: false,
-    };
+    // Re-enable minification for proper API route handling
+    // config.optimization = {
+    //   ...config.optimization,
+    //   minimize: false,
+    // };
     
     return config;
   },
