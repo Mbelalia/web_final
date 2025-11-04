@@ -288,12 +288,12 @@ export async function POST(request: NextRequest) {
 
     let products: Product[] = [];
 
-    // IKEA works best with positional extraction
+    // Use positional extraction for IKEA and La Redoute
     if (vendor === 'ikea') {
       console.log('Using positional extraction (IKEA optimized)');
       products = extractProductsFromPositions(pages, { vendor });
       
-      // Fallback to LLM if positional fails
+      // Fallback to LLM only for IKEA if positional fails
       if (products.length === 0) {
         console.log('Positional extraction failed, trying LLM...');
         const boxSummary = groupRowsIntoProductBoxes(summary, {
@@ -303,8 +303,12 @@ export async function POST(request: NextRequest) {
         });
         products = await extractWithLLM(boxSummary, vendor);
       }
+    } else if (vendor === 'la_redoute') {
+      // Force positional fallback directly for La Redoute (no AI)
+      console.log('Using positional extraction (La Redoute forced fallback, no AI)');
+      products = extractProductsFromPositions(pages, { vendor });
     } else {
-      // Everything else (including La Redoute) uses universal LLM approach
+      // Everything else uses universal LLM approach
       console.log('Using universal LLM extraction');
       
       const boxSummary = groupRowsIntoProductBoxes(summary, {
@@ -348,7 +352,7 @@ export async function POST(request: NextRequest) {
         vendor,
         pages: pages.length,
         productsFound: validProducts.length,
-        method: vendor === 'ikea' ? 'positional' : 'llm-universal'
+        method: (vendor === 'ikea' || vendor === 'la_redoute') ? 'positional' : 'llm-universal'
       }
     });
 
