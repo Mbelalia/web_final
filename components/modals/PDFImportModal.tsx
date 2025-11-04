@@ -87,21 +87,33 @@ const PDFImportModal = ({ isOpen, onClose, onImportSuccess, user }: PDFImportMod
       const formData = new FormData();
       formData.append('pdf', pdfFile);
       
-      // Call LLM positional mode directly
-      const response = await fetch('/api/pdf-extract?mode=llm-positions', {
+      const response = await fetch('/api/pdf-extract/?mode=llm-positions', {
         method: 'POST',
+        headers: {
+          Accept: 'application/json',
+        },
         body: formData,
+        redirect: 'follow',
       });
       
+      const contentType = response.headers.get('content-type') || '';
+      const raw = await response.text();
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erreur lors du traitement du PDF');
+        if (contentType.includes('application/json')) {
+          const errorData = JSON.parse(raw);
+          throw new Error(errorData.error || 'Erreur lors du traitement du PDF');
+        } else {
+          throw new Error(`HTTP ${response.status}: ${raw.slice(0, 200)}`);
+        }
       }
       
-      const result = await response.json();
+      const result = contentType.includes('application/json')
+          ? JSON.parse(raw)
+          : (() => { throw new Error(`Unexpected response format (not JSON): ${raw.slice(0, 200)}`); })();
+      
       console.log('PDF extraction result (llm-positions):', result);
       
-      // Consume products array from llm-positions response
       if (result.success && Array.isArray(result.products) && result.products.length > 0) {
         setExtractedData(result.products);
         setSelectedItems(result.products.map((item: ExtractedProduct) => item.id));

@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Cette ligne doit rester commentée pour permettre les API routes
   // output: 'export',  
-  trailingSlash: true,
+  // trailingSlash: true,
   images: {
     unoptimized: true,
   },
