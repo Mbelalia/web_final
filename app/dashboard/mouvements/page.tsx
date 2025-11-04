@@ -620,7 +620,7 @@ export default function MovementsPage() {
           <div className="flex gap-3">
             <Dialog open={createApartmentOpen} onOpenChange={setCreateApartmentOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="bg-muted/20 text-muted-foreground border-border/50 hover:bg-muted/30">
+                <Button variant="default" className="bg-gray-700 text-white border-gray-600 hover:bg-gray-800 font-medium shadow-sm">
                   <Building2 className="mr-2 h-4 w-4" />
                   Nouvel appartement
                 </Button>

@@ -71,7 +71,7 @@ interface ApartmentDetailModalProps {
   user: User;
 }
 
-export const ApartmentDetailModal: React.FC<ApartmentDetailModalProps> = ({ 
+export const ApartmentDetailModal: React.FC<ApartmentDetailModalProps> = ({
   apartment, 
   isOpen, 
   onClose, 
@@ -363,7 +363,7 @@ export const ApartmentDetailModal: React.FC<ApartmentDetailModalProps> = ({
                                   </Badge>
                                 )}
                                 {product.subcategory && (
-                                  <Badge variant="secondary" className="bg-secondary/20 text-secondary border-secondary/30 text-xs">
+                                  <Badge variant="default" className="bg-blue-700 text-white border-blue-600 hover:bg-blue-800 text-xs font-medium shadow-sm">
                                     {product.subcategory}
                                   </Badge>
                                 )}
@@ -477,7 +477,7 @@ export const ApartmentDetailModal: React.FC<ApartmentDetailModalProps> = ({
                                   </Badge>
                                 )}
                                 {movement.product_subcategory && (
-                                  <Badge variant="secondary" className="bg-secondary/20 text-secondary border-secondary/30 w-fit text-xs">
+                                  <Badge variant="default" className="bg-blue-700 text-white border-blue-600 hover:bg-blue-800 w-fit text-xs font-medium shadow-sm">
                                     {movement.product_subcategory}
                                   </Badge>
                                 )}

@@ -173,10 +173,10 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({
                 <Plus className="h-4 w-4 mr-1" /> Nouvelle Catégorie
               </Button>
               <Button 
-                variant="outline" 
+                variant="default" 
                 size="sm" 
                 onClick={() => setSubcategoryAddDialogOpen(true)} 
-                className="bg-secondary/10 border-secondary/30 text-secondary hover:bg-secondary/20"
+                className="bg-blue-700 text-white hover:bg-blue-800 border border-blue-700 shadow-sm"
               >
                 <Plus className="h-4 w-4 mr-1" /> Nouvelle Sous-catégorie
               </Button>

@@ -68,6 +68,7 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [favoritesImportOpen, setFavoritesImportOpen] = useState(false);
+  const [autoOpenedFromQuery, setAutoOpenedFromQuery] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [groupedProducts, setGroupedProducts] = useState<GroupedProduct[]>([]);
   const [sortField, setSortField] = useState<string>('name');
@@ -239,6 +240,22 @@ export default function InventoryPage() {
       setHideZeroStock(false);
     }
   }, [searchParams]);
+
+  // Check if URL has openAdd parameter to open the add product dialog once and then remove the param
+  useEffect(() => {
+    const openAdd = searchParams.get('openAdd');
+    if (
+      openAdd === 'true' &&
+      !autoOpenedFromQuery &&
+      !loadingCategories &&
+      !loadingSubcategories &&
+      user
+    ) {
+      setAutoOpenedFromQuery(true);
+      setOpen(true);
+      router.replace('/dashboard/inventaire', { scroll: false });
+    }
+  }, [searchParams, autoOpenedFromQuery, loadingCategories, loadingSubcategories, user, router]);
 
   // Event handlers
   const handleFormSuccess = () => {
@@ -495,8 +512,8 @@ export default function InventoryPage() {
               {/* Manage Categories Button */}
               <Button
                   onClick={() => setManageCategoriesDialogOpen(true)}
-                  className="bg-muted/20 text-muted-foreground border-border/50 hover:bg-muted/30"
-                  variant="outline"
+                  className="bg-blue-700 text-white border border-blue-700 hover:bg-blue-800 font-medium shadow-sm"
+                  variant="default"
               >
                 <Settings2 className="w-4 h-4 mr-2" />
                 Gérer catégories

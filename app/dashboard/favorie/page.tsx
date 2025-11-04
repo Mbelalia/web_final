@@ -47,6 +47,8 @@ import { supabase } from '@/lib/supabase'
 import { toast, Toaster } from "sonner"
 import { useRouter } from "next/navigation"
 import Image from 'next/image'
+import { CategoryManagement } from '@/components/inventory/index'
+import type { User as SupabaseUser } from '@supabase/supabase-js'
 
 // Types
 interface DbCategory {
@@ -79,10 +81,7 @@ interface Product {
   subcategory_name?: string;
 }
 
-interface User {
-  id: string;
-  email?: string;
-}
+type User = SupabaseUser
 
 const VAT_RATE = 0.20;
 
@@ -99,8 +98,6 @@ export default function FavoritePage() {
 
   // Dialog states
   const [openProductDialog, setOpenProductDialog] = useState(false);
-  const [categoryAddDialogOpen, setCategoryAddDialogOpen] = useState(false);
-  const [subcategoryAddDialogOpen, setSubcategoryAddDialogOpen] = useState(false);
   const [manageCategoriesDialogOpen, setManageCategoriesDialogOpen] = useState(false);
 
   // UI states
@@ -116,9 +113,6 @@ export default function FavoritePage() {
   
   // Form states
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [newSubcategoryName, setNewSubcategoryName] = useState("");
-  const [parentCategoryIdForNewSub, setParentCategoryIdForNewSub] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -408,39 +402,7 @@ export default function FavoritePage() {
     }
   };
 
-  const handleAddCategory = async () => {
-    if (!user) {
-      toast.error("Vous devez être connecté pour effectuer cette action.");
-      return;
-    }
-    
-    if (!newCategoryName.trim()) {
-      toast.error("Le nom de la catégorie est requis."); 
-      return;
-    }
-    
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .insert({ 
-          name: newCategoryName,
-          user_id: user.id 
-        })
-        .select();
-      
-      if (error) throw error;
-      if (data) setCategories(prev => [...prev, ...data].sort((a,b) => a.name.localeCompare(b.name)));
-      setNewCategoryName("");
-      setCategoryAddDialogOpen(false);
-      toast.success("Catégorie ajoutée !");
-    } catch (error) {
-      console.error('Error adding category:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
-      if (errorMessage?.includes('duplicate key value violates unique constraint')) 
-        toast.error("Cette catégorie existe déjà.");
-      else toast.error(`Erreur: ${errorMessage}`);
-    }
-  };
+
 
   const handleDeleteCategory = async (categoryId: string) => {
     if (!user) {
@@ -471,41 +433,7 @@ export default function FavoritePage() {
     }
   };
 
-  const handleAddSubcategory = async () => {
-    if (!user) {
-      toast.error("Vous devez être connecté pour effectuer cette action.");
-      return;
-    }
-    
-    if (!newSubcategoryName.trim() || !parentCategoryIdForNewSub) {
-      toast.error("Catégorie parente et nom de sous-catégorie requis."); 
-      return;
-    }
-    
-    try {
-      const { data, error } = await supabase
-        .from('subcategories')
-        .insert({ 
-          name: newSubcategoryName, 
-          category_id: parentCategoryIdForNewSub,
-          user_id: user.id 
-        })
-        .select();
-      
-      if (error) throw error;
-      if (data) setSubcategories(prev => [...prev, ...data].sort((a,b) => a.name.localeCompare(b.name)));
-      setNewSubcategoryName("");
-      setParentCategoryIdForNewSub(null);
-      setSubcategoryAddDialogOpen(false);
-      toast.success("Sous-catégorie ajoutée !");
-    } catch (error) {
-      console.error('Error adding subcategory:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
-      if (errorMessage?.includes('duplicate key value violates unique constraint')) 
-        toast.error("Cette sous-catégorie existe déjà pour cette catégorie.");
-      else toast.error(`Erreur: ${errorMessage}`);
-    }
-  };
+
 
   const handleDeleteSubcategory = async (subcategoryId: string) => {
     if (!user) {
@@ -538,6 +466,12 @@ export default function FavoritePage() {
     : [];
     
   const isLoading = authLoading || loadingFavorites || loadingCategories || loadingSubcategories;
+
+  const handleCategoriesUpdate = useCallback(() => {
+    fetchDbCategories();
+    fetchDbSubcategories();
+    fetchFavoritesWithNames();
+  }, [fetchDbCategories, fetchDbSubcategories, fetchFavoritesWithNames]);
 
   // Calculate stats
   const totalFavorites = sortedFavorites.length;
@@ -579,126 +513,14 @@ export default function FavoritePage() {
           </div>
           <div className="flex gap-3">
             {/* Manage Categories Button */}
-            <Dialog open={manageCategoriesDialogOpen} onOpenChange={setManageCategoriesDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-muted/20 text-muted-foreground border-border/50 hover:bg-muted/30" variant="outline">
-                  <Settings2 className="w-4 h-4 mr-2" />
-                  Gérer catégories
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-card/80 backdrop-blur-xl border-border/50 text-foreground sm:max-w-4xl">
-                <DialogHeader>
-                  <DialogTitle className="text-xl font-semibold">Gérer les Catégories &amp; Sous-catégories</DialogTitle>
-                  <DialogDescription>
-                    Organisez vos catégories et sous-catégories. Les modifications affecteront les filtres et options de produits.
-                  </DialogDescription>
-                </DialogHeader>
-                
-                <div className="mt-4 max-h-[60vh] overflow-y-auto p-1">
-                  <div className="flex justify-end gap-2 mb-4 sticky top-0 bg-card/80 backdrop-blur-xl py-2 z-10 border-b border-border/30">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => {setNewCategoryName(''); setCategoryAddDialogOpen(true)}} 
-                      className="bg-primary/10 border-primary/30 text-primary hover:bg-primary/20"
-                    >
-                      <Plus className="h-4 w-4 mr-1" /> Nouvelle Catégorie
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => { setParentCategoryIdForNewSub(null); setNewSubcategoryName(''); setSubcategoryAddDialogOpen(true);}} 
-                      className="bg-secondary/10 border-secondary/30 text-secondary hover:bg-secondary/20"
-                    >
-                      <Plus className="h-4 w-4 mr-1" /> Nouvelle Sous-catégorie
-                    </Button>
-                  </div>
-                  
-                  {loadingCategories || loadingSubcategories ? (
-                    <div className="flex flex-col items-center justify-center py-12">
-                      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-                      <p className="text-muted-foreground">Chargement des catégories...</p>
-                    </div>
-                  ) : categories.length === 0 ? (
-                    <div className="text-center py-12">
-                      <div className="w-16 h-16 bg-muted/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <Tag className="w-8 h-8 text-muted-foreground" />
-                      </div>
-                      <h3 className="font-semibold text-foreground mb-2">Aucune catégorie</h3>
-                      <p className="text-muted-foreground">Ajoutez une catégorie pour commencer à organiser vos favoris.</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {categories.map(cat => (
-                        <div key={cat.id} className="group bg-card/50 backdrop-blur-xl border border-border/30 rounded-xl p-6 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300">
-                          <div className="flex justify-between items-start mb-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg flex items-center justify-center">
-                                <Tag className="w-5 h-5 text-primary" />
-                              </div>
-                              <div>
-                                <h3 className="font-semibold text-foreground text-lg">{cat.name}</h3>
-                                <p className="text-xs text-muted-foreground">
-                                  {subcategories.filter(s => s.category_id === cat.id).length} sous-catégories
-                                </p>
-                              </div>
-                            </div>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/20" 
-                              onClick={() => handleDeleteCategory(cat.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <p className="text-sm font-medium text-muted-foreground">Sous-catégories:</p>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="text-primary hover:text-primary/80 hover:bg-primary/10 h-7 text-xs" 
-                                onClick={() => {setParentCategoryIdForNewSub(cat.id); setNewSubcategoryName(''); setSubcategoryAddDialogOpen(true);}}
-                              >
-                                <Plus className="h-3 w-3 mr-1" /> Ajouter
-                              </Button>
-                            </div>
-                            
-                            {subcategories.filter(s => s.category_id === cat.id).length > 0 ? (
-                              <div className="space-y-2 max-h-32 overflow-y-auto">
-                                {subcategories.filter(s => s.category_id === cat.id).map(sub => (
-                                  <div key={sub.id} className="flex justify-between items-center p-2 bg-muted/30 rounded-lg border border-border/20">
-                                    <span className="text-sm text-foreground">{sub.name}</span>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm" 
-                                      className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/20" 
-                                      onClick={() => handleDeleteSubcategory(sub.id)}
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-xs text-muted-foreground italic">Aucune sous-catégorie</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                
-                <DialogFooter className="mt-6 border-t border-border/30 pt-4">
-                  <Button variant="outline" onClick={() => setManageCategoriesDialogOpen(false)}>
-                    Fermer
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button
+              className="bg-blue-700 text-white border border-blue-700 hover:bg-blue-800 font-medium shadow-sm"
+              variant="default"
+              onClick={() => setManageCategoriesDialogOpen(true)}
+            >
+              <Settings2 className="w-4 h-4 mr-2" />
+              Gérer catégories
+            </Button>
 
             {/* Add Product Button */}
             <Dialog open={openProductDialog} onOpenChange={(isOpen) => {
@@ -718,7 +540,7 @@ export default function FavoritePage() {
               }
             }}>
               <DialogTrigger asChild>
-                <Button className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90">
+                <Button className="bg-blue-800 text-white hover:bg-blue-900 border border-blue-700 font-medium shadow-sm">
                   <Plus className="mr-2 h-4 w-4" /> Nouveau favori
                 </Button>
               </DialogTrigger>
@@ -962,7 +784,7 @@ export default function FavoritePage() {
                   <div className="p-4 max-h-[40vh] overflow-y-auto">
                     <div className="flex justify-between items-center mb-3">
                       <h4 className="font-medium text-sm">Filtrer par catégorie</h4>
-                      <Button variant="ghost" size="sm" onClick={() => {setNewCategoryName(''); setCategoryAddDialogOpen(true)}} className="h-6 w-6 p-0">
+                      <Button variant="ghost" size="sm" onClick={() => setManageCategoriesDialogOpen(true)} className="h-6 w-6 p-0">
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
@@ -1009,11 +831,7 @@ export default function FavoritePage() {
                               variant="ghost" 
                               size="sm" 
                               className="w-full justify-start text-xs mt-1 text-primary"
-                              onClick={() => {
-                                setParentCategoryIdForNewSub(selectedCategoryId);
-                                setNewSubcategoryName('');
-                                setSubcategoryAddDialogOpen(true);
-                              }}
+                              onClick={() => setManageCategoriesDialogOpen(true)}
                             >
                               <Plus className="h-3 w-3 mr-1" /> Ajouter sous-catégorie
                             </Button>
@@ -1117,7 +935,7 @@ export default function FavoritePage() {
                           </Badge>
                         )}
                         {product.subcategory_name && (
-                          <Badge variant="secondary" className="bg-secondary/20 text-secondary border-secondary/30">
+                          <Badge className="bg-blue-700 text-white hover:bg-blue-800 border border-blue-700 shadow-sm">
                             {product.subcategory_name}
                           </Badge>
                         )}
@@ -1195,7 +1013,7 @@ export default function FavoritePage() {
                               </Badge>
                             )}
                             {product.subcategory_name && (
-                              <Badge variant="secondary" className="bg-secondary/20 text-secondary border-secondary/30 w-fit">
+                              <Badge className="bg-blue-700 text-white hover:bg-blue-800 border border-blue-700 shadow-sm w-fit">
                                 {product.subcategory_name}
                               </Badge>
                             )}
@@ -1249,81 +1067,17 @@ export default function FavoritePage() {
           </div>
         )}
 
-        {/* Category Dialog */}
-        <Dialog open={categoryAddDialogOpen} onOpenChange={setCategoryAddDialogOpen}>
-          <DialogContent className="bg-card/80 backdrop-blur-xl border-border/50 text-foreground sm:max-w-[400px]">
-            <DialogHeader>
-              <DialogTitle>Ajouter une catégorie</DialogTitle>
-              <DialogDescription>
-                Créez une nouvelle catégorie pour organiser vos favoris.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4 space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="newCategoryName" className="text-sm font-medium text-foreground">Nom de la catégorie</label>
-                <Input 
-                  id="newCategoryName" 
-                  value={newCategoryName} 
-                  onChange={(e) => setNewCategoryName(e.target.value)} 
-                  placeholder="Ex: Électronique" 
-                  className="bg-card/50 border-border/50 text-foreground focus:border-primary/50 focus:ring-primary/20" 
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setCategoryAddDialogOpen(false)}>
-                Annuler
-              </Button>
-              <Button onClick={handleAddCategory} className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90">
-                Ajouter
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <CategoryManagement
+          isOpen={manageCategoriesDialogOpen}
+          onClose={() => setManageCategoriesDialogOpen(false)}
+          categories={categories}
+          subcategories={subcategories}
+          onCategoriesUpdate={handleCategoriesUpdate}
+          user={user!}
+        />
 
-        {/* Subcategory Dialog */}
-        <Dialog open={subcategoryAddDialogOpen} onOpenChange={setSubcategoryAddDialogOpen}>
-          <DialogContent className="bg-card/80 backdrop-blur-xl border-border/50 text-foreground sm:max-w-[400px]">
-            <DialogHeader>
-              <DialogTitle>Ajouter une sous-catégorie</DialogTitle>
-              <DialogDescription>
-                Créez une nouvelle sous-catégorie pour une catégorie existante.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4 space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="parentCategoryForNewSub" className="text-sm font-medium text-foreground">Catégorie parente</label>
-                <select 
-                  id="parentCategoryForNewSub" 
-                  value={parentCategoryIdForNewSub || ""}
-                  onChange={(e) => setParentCategoryIdForNewSub(e.target.value)}
-                  className="w-full rounded-xl border border-border/50 bg-card/50 px-4 py-3 text-foreground focus:border-primary/50 focus:ring-primary/20"
-                >
-                  <option value="">Sélectionner la catégorie parente</option>
-                  {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="newSubcategoryName" className="text-sm font-medium text-foreground">Nom de la sous-catégorie</label>
-                <Input 
-                  id="newSubcategoryName" 
-                  value={newSubcategoryName} 
-                  onChange={(e) => setNewSubcategoryName(e.target.value)} 
-                  placeholder="Ex: Smartphones" 
-                  className="bg-card/50 border-border/50 text-foreground focus:border-primary/50 focus:ring-primary/20"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setSubcategoryAddDialogOpen(false)}>
-                Annuler
-              </Button>
-              <Button onClick={handleAddSubcategory} className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90">
-                Ajouter
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+
+
       </div>
     </div>
   );

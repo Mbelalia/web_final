@@ -362,7 +362,11 @@ export default function ModernDashboard() {
           <div className="bg-card/60 backdrop-blur-xl border border-border/50 rounded-2xl p-6">
             <h3 className="font-semibold text-foreground mb-4">Actions rapides</h3>
             <div className="space-y-3">
-              <Button variant="ghost" className="w-full justify-start text-left h-auto p-3 hover:bg-primary/10">
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-left h-auto p-3 hover:bg-primary/10"
+                onClick={() => router.push('/dashboard/inventaire?openAdd=true')}
+              >
                 <Plus className="w-4 h-4 mr-3 text-primary" />
                 <div>
                   <div className="font-medium">Ajouter un produit</div>
