@@ -540,30 +540,24 @@ export default function MovementsPage() {
       doc.setFontSize(8)
       doc.setTextColor(120, 120, 120)
       
-      // Gauche : informations du document
-      doc.text(
-        `Rapport généré automatiquement le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`,
-        margin,
-        pageHeight - 15
-      )
+      // Ligne 1 : Appartement (Gauche) et Pagination (Droite)
+      const aptText = `Appartement : ${apartment.apartment.name}`
+      const maxAptWidth = pageWidth - 2 * margin - 40
+      const safeAptText = truncateToWidth(aptText, maxAptWidth)
+      doc.text(safeAptText, margin, pageHeight - 18)
       
-      // Centre : nom de l'appartement
-      const centerText = `Appartement: ${apartment.apartment.name}`
-      const centerX = (pageWidth - doc.getTextWidth(centerText)) / 2
-      doc.text(centerText, centerX, pageHeight - 15)
-      
-      // Droite : numéro de page
       const pageText = `Page ${i} sur ${totalPages}`
       const pageX = pageWidth - margin - doc.getTextWidth(pageText)
-      doc.text(pageText, pageX, pageHeight - 15)
+      doc.text(pageText, pageX, pageHeight - 18)
       
-      // Informations de confidentialité
+      // Ligne 2 : Date (Gauche) et Confidentialité (Droite)
       doc.setFontSize(7)
-      doc.text(
-        'Document confidentiel - Usage interne uniquement',
-        margin,
-        pageHeight - 8
-      )
+      const dateText = `Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`
+      doc.text(dateText, margin, pageHeight - 10)
+      
+      const confText = 'Document confidentiel'
+      const confX = pageWidth - margin - doc.getTextWidth(confText)
+      doc.text(confText, confX, pageHeight - 10)
     }
     
     // === SAUVEGARDE AVEC NOM FRANÇAIS ===
