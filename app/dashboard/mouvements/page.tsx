@@ -232,6 +232,25 @@ export default function MovementsPage() {
     const pageWidth = doc.internal.pageSize.width
     const pageHeight = doc.internal.pageSize.height
     const margin = 20
+
+    const wrapToWidth = (text: string, maxWidth: number) => {
+      return doc.splitTextToSize(String(text || ''), Math.max(1, maxWidth - 4))
+    }
+
+    const truncateToWidth = (text: string, maxWidth: number) => {
+      const safe = String(text || '')
+      const lines = doc.splitTextToSize(safe, maxWidth - 2)
+      let first = lines[0] || ''
+      if (lines.length > 1) {
+        const ellipsis = '...'
+        if (doc.getTextWidth(first + ellipsis) <= maxWidth) return first + ellipsis
+        while (first.length > 0 && doc.getTextWidth(first + ellipsis) > maxWidth) {
+          first = first.slice(0, -1)
+        }
+        return first + ellipsis
+      }
+      return first
+    }
     
     // === EN-TÊTE AVEC LOGO/DESIGN ===
     // Bande de couleur en haut
@@ -381,39 +400,50 @@ export default function MovementsPage() {
     
     // Lignes du tableau
     products.forEach((product: any, index) => {
-      if (yPosition > pageHeight - 30) {
+      const lineHeight = 5
+      const cellPadX = 2
+      const cellPadY = 4
+
+      const rawCategory = (product.category && product.subcategory)
+        ? `${product.category} -> ${product.subcategory}`
+        : product.category || 'Non catégorisé'
+
+      const nameLines = [truncateToWidth(product.name || '', colWidths[0] - cellPadX * 2)]
+      const categoryLines = wrapToWidth(rawCategory, colWidths[1] - cellPadX * 2)
+      const qtyLines = [product.totalQuantity.toString()]
+      const valueLines = [`${product.totalValueTTC.toFixed(2)} €`]
+
+      const maxLines = Math.max(nameLines.length, categoryLines.length, qtyLines.length, valueLines.length)
+      const rowHeight = maxLines * lineHeight + cellPadY * 2
+
+      if (yPosition + rowHeight > pageHeight - 30) {
         doc.addPage()
         yPosition = 30
       }
-      
-      // Alternance de couleurs pour les lignes
+
       if (index % 2 === 0) {
         doc.setFillColor(248, 249, 250)
-        doc.rect(margin, yPosition - 2, pageWidth - 2 * margin, 12, 'F')
+        doc.rect(margin, yPosition - 2, pageWidth - 2 * margin, rowHeight, 'F')
       }
-      
+
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
       doc.setTextColor(...secondaryColor)
-      
-      xPos = margin
-      // Dans la section du tableau des produits (ligne ~400)
-      const rowData = [
-        product.name.length > 25 ? product.name.substring(0, 25) + '...' : product.name,
-        // Correction : utiliser la bonne structure de données
-        (product.category && product.subcategory) 
-          ? `${product.category} -> ${product.subcategory}`
-          : product.category || 'Non catégorisé',
-        product.totalQuantity.toString(),
-        `${product.totalValueTTC.toFixed(2)} €`
-      ]
-      
-      rowData.forEach((data, colIndex) => {
-        doc.text(data, xPos + 2, yPosition + 6)
-        xPos += colWidths[colIndex]
-      })
-      
-      yPosition += 12
+
+      let colX = margin
+      const drawCol = (lines: string[], width: number) => {
+        lines.forEach((line, i) => {
+          doc.text(line, colX + cellPadX, yPosition + cellPadY + i * lineHeight)
+        })
+        colX += width
+      }
+
+      drawCol(nameLines, colWidths[0])
+      drawCol(categoryLines, colWidths[1])
+      drawCol(qtyLines, colWidths[2])
+      drawCol(valueLines, colWidths[3])
+
+      yPosition += rowHeight
     })
     
     yPosition += 20
@@ -510,30 +540,24 @@ export default function MovementsPage() {
       doc.setFontSize(8)
       doc.setTextColor(120, 120, 120)
       
-      // Gauche : informations du document
-      doc.text(
-        `Rapport généré automatiquement le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`,
-        margin,
-        pageHeight - 15
-      )
+      // Ligne 1 : Appartement (Gauche) et Pagination (Droite)
+      const aptText = `Appartement : ${apartment.apartment.name}`
+      const maxAptWidth = pageWidth - 2 * margin - 40
+      const safeAptText = truncateToWidth(aptText, maxAptWidth)
+      doc.text(safeAptText, margin, pageHeight - 18)
       
-      // Centre : nom de l'appartement
-      const centerText = `Appartement: ${apartment.apartment.name}`
-      const centerX = (pageWidth - doc.getTextWidth(centerText)) / 2
-      doc.text(centerText, centerX, pageHeight - 15)
-      
-      // Droite : numéro de page
       const pageText = `Page ${i} sur ${totalPages}`
       const pageX = pageWidth - margin - doc.getTextWidth(pageText)
-      doc.text(pageText, pageX, pageHeight - 15)
+      doc.text(pageText, pageX, pageHeight - 18)
       
-      // Informations de confidentialité
+      // Ligne 2 : Date (Gauche) et Confidentialité (Droite)
       doc.setFontSize(7)
-      doc.text(
-        'Document confidentiel - Usage interne uniquement',
-        margin,
-        pageHeight - 8
-      )
+      const dateText = `Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`
+      doc.text(dateText, margin, pageHeight - 10)
+      
+      const confText = 'Document confidentiel'
+      const confX = pageWidth - margin - doc.getTextWidth(confText)
+      doc.text(confText, confX, pageHeight - 10)
     }
     
     // === SAUVEGARDE AVEC NOM FRANÇAIS ===
